@@ -1,5 +1,5 @@
 import sys
-from PyQt5.QtWidgets import QMainWindow, QApplication, QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QLabel, QLineEdit, QTextEdit, QFileDialog, QColorDialog, QFontDialog, QMessageBox
+from PyQt5.QtWidgets import QAction, QMainWindow, QApplication, QToolBar, QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QLabel, QLineEdit, QTextEdit, QFileDialog, QColorDialog, QFontDialog, QMessageBox
 from PyQt5.QtCore import Qt, QPoint
 from PyQt5.QtGui import QPainter, QPen, QColor
 
@@ -18,6 +18,21 @@ class VentanaDibujo(QMainWindow):
         self.trazo =[]
         self.lapiz = QPen(QColor(255,0,0),3, Qt.SolidLine)# lapiz rojo de 3px
 
+        self.barra_herramientas = QToolBar("Herramientas")
+        self.addToolBar(self.barra_herramientas)
+
+        #botones para cambiar de color 
+        boton_rojo = QAction("rojo", self)
+        boton_rojo.triggered.connect(lambda: self.cambiar_color(QColor(255,0,0)))
+        self.barra_herramientas.addAction(boton_rojo)
+
+        boton_azul = QAction("azul", self)
+        boton_azul.triggered.connect(lambda: self.cambiar_color(QColor(0,0,255)))
+        self.barra_herramientas.addAction(boton_azul)
+
+        boton_verde = QAction("verde", self)
+
+####FUNCIONES PARA LA PANTALLA TRNSPARENTE 
     def paintEvent(self, event):
         painter = QPainter(self)
         painter.setPen(self.lapiz)
@@ -38,6 +53,10 @@ class VentanaDibujo(QMainWindow):
     def mouseReleaseEvent(self, event):
         if event.button() == Qt.LeftButton:
             self.dibujando = False
+
+###FUNCIONES DE LAS HERRAMIETNAS
+    def cambiar_color(self, color):
+        self.lapiz.setColor(color)
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
