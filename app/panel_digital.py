@@ -1,8 +1,8 @@
 import sys
 from tkinter import Spinbox
-from PyQt5.QtWidgets import QAction, QMainWindow, QApplication, QSpinBox, QToolBar, QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QLabel, QLineEdit, QTextEdit, QFileDialog, QColorDialog, QFontDialog, QMessageBox
+from PyQt5.QtWidgets import QAction, QInputDialog, QMainWindow, QApplication, QSpinBox, QToolBar, QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QLabel, QLineEdit, QTextEdit, QFileDialog, QColorDialog, QFontDialog, QMessageBox
 from PyQt5.QtCore import Qt, QPoint
-from PyQt5.QtGui import QPainter, QPen, QColor
+from PyQt5.QtGui import QFont, QPainter, QPen, QColor
 
 class VentanaDibujo(QMainWindow):
     def __init__(self):
@@ -19,20 +19,40 @@ class VentanaDibujo(QMainWindow):
         self.trazo =[]
         self.lapiz = QPen(QColor(255,0,0),3, Qt.SolidLine)# lapiz rojo de 3px
 
+        #variables para texto
+        self.textos = []
+        
+        self.modo = "lapiz"
+
        #crear barra de herramientas
         self.crear_barra_herramientas()
 
 ####FUNCIONES PARA LA PANTALLA TRNSPARENTE 
     def paintEvent(self, event):
         painter = QPainter(self)
+
+        #dibujar trazos
         painter.setPen(self.lapiz)
         for punto_inicial, punto_final in self.trazo:
             painter.drawLine(punto_inicial, punto_final)
+        
+        #dibujar textos
+        font = QFont("Arial", 12)
+        painter.setFont(font)
+        for pos, texto,  color in self.textos:
+            painter.setPen(QPen(color))
+            if isinstance(pos, QPoint): 
+                painter.drawText(pos, texto)
+            else:
+                painter.drawText(pos.x(), pos.y(), texto)
 
     def mousePressEvent(self, event):
         if event.button() == Qt.LeftButton:
-            self.dibujando = True
-            self.ultimo_punto = event.pos()
+            if self.modo == "lapiz":
+                self.dibujando = True
+                self.ultimo_punto = event.pos()
+            elif self.modo == "texto":
+                self.agregar_texto(event.pos())
     
     def mouseMoveEvent(self, event):
         if self.dibujando:
@@ -49,6 +69,16 @@ class VentanaDibujo(QMainWindow):
         barra = QToolBar("herramientas")
         barra.setMovable(False)
         self.addToolBar(Qt.TopToolBarArea, barra)
+
+        #boton para lapiz
+        boton_lapiz = QAction("lapiz", self)
+        boton_lapiz.triggered.connect(lambda: self.cambiar_modo("lapiz"))
+        barra.addAction(boton_lapiz)
+
+        #boton para texto
+        boton_texto = QAction("texto", self)
+        boton_texto.triggered.connect(lambda: self.cambiar_modo("texto"))
+        barra.addAction(boton_texto)
 
         #boton para colores
         boton_rojo = QAction("rojo", self)
@@ -71,6 +101,8 @@ class VentanaDibujo(QMainWindow):
         boton_borrar.triggered.connect(self.borrar_todo)
         barra.addAction(boton_borrar)
 
+        barra.setMovable(True)
+
     def cambiar_color(self, color):
         self.lapiz.setColor(color)
 
@@ -80,6 +112,15 @@ class VentanaDibujo(QMainWindow):
     def borrar_todo(self):
         self.trazo = []
         self.update()
+    
+    def cambiar_modo(self, modo):
+        self.modo = modo
+    
+    def agregar_texto(self, posicion):
+        texto, ok = QInputDialog.getText(self, "Añadir Texto", "Escribe texto:")
+        if ok and texto:
+            self.textos.append((posicion, texto, self.lapiz.color()))
+            self.update()
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
