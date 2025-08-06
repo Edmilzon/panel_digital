@@ -1,9 +1,11 @@
 import sys
 from PyQt5.QtWidgets import (QAction, QInputDialog, QMainWindow, QApplication, 
                              QSpinBox, QToolBar, QColorDialog, QFontDialog, 
-                             QMessageBox, QVBoxLayout, QHBoxLayout, QWidget)
-from PyQt5.QtCore import QRect, Qt, QPoint
-from PyQt5.QtGui import QFont, QPainter, QPen, QColor, QFontMetrics, QBrush
+                             QMessageBox, QVBoxLayout, QHBoxLayout, QWidget, QLabel, 
+                             QPushButton, QFrame, QButtonGroup, QRadioButton, QSpacerItem)
+from PyQt5.QtCore import QRect, Qt, QPoint, QSize, QPropertyAnimation, QEasingCurve
+from PyQt5.QtGui import QFont, QPainter, QPen, QColor, QFontMetrics, QBrush, QIcon, QPixmap, QPalette
+from PyQt5.QtWidgets import QSizePolicy
 
 class VentanaDibujo(QMainWindow):
     def __init__(self):
@@ -42,9 +44,17 @@ class VentanaDibujo(QMainWindow):
         
         #modos
         self.modo = "lapiz"
+        self.panel_activo = True  # True = panel activo, False = fondo activo
+        self.panel_colapsado = False
+        self.panel_expandido = True
 
         #crear barra de herramientas
-        self.crear_barra_herramientas()
+        self.crear_interfaz_moderna()
+        self.setWindowTitle("Panel Digital - ACTIVO")
+        
+        # Verificar estado después de mostrar la ventana
+        from PyQt5.QtCore import QTimer
+        QTimer.singleShot(500, self.verificar_estado_panel)
 
     def paintEvent(self, event):
         painter = QPainter(self)
@@ -85,12 +95,37 @@ class VentanaDibujo(QMainWindow):
             painter.setPen(QPen(QColor(255, 0, 0), 2))
             painter.setBrush(QBrush(QColor(255, 0, 0, 50)))  # Rojo semi-transparente
             painter.drawEllipse(self.mouse_pos, 15, 15)
-    
+        
+        # Dibujar indicador de estado del panel solo en una esquina pequeña
+        if not self.panel_activo:
+            # Indicador pequeño en la esquina superior derecha
+            painter.setPen(QPen(QColor(255, 0, 0), 2))
+            painter.setBrush(QBrush(QColor(255, 0, 0, 150)))
+            painter.drawRect(self.width() - 50, 10, 40, 20)
+            painter.setPen(QPen(QColor(255, 255, 255), 1))
+            painter.drawText(QRect(self.width() - 50, 10, 40, 20), Qt.AlignCenter, "INACTIVO")
+
     def mousePressEvent(self, event):
+        # Si el panel está inactivo, solo permitir activarlo en el indicador pequeño
+        if not self.panel_activo:
+            # Verificar si el clic está en el indicador pequeño (esquina superior derecha)
+            indicador_rect = QRect(self.width() - 50, 10, 40, 20)
+            if indicador_rect.contains(event.pos()):
+                self.alternar_modo()
+                return
+            else:
+                # NO hacer nada, dejar que los eventos pasen a las aplicaciones del sistema
+                event.ignore()
+                return
+
         if event.button() == Qt.LeftButton:
             if self.modo == "lapiz":
                 self.dibujando = True
                 self.ultimo_punto = event.pos()
+            elif self.modo == "punto":
+                # Dibujar un punto
+                self.trazo.append((event.pos(), event.pos()))
+                self.update()
             elif self.modo == "texto":
                 self.agregar_texto(event.pos())
             elif self.modo == "mover":
@@ -113,6 +148,10 @@ class VentanaDibujo(QMainWindow):
                 self.borrar_en_posicion(event.pos())
     
     def mouseMoveEvent(self, event):
+        # Si el panel está inactivo, ignorar eventos de mouse
+        if not self.panel_activo:
+            return
+        
         self.mouse_pos = event.pos()
         if self.dibujando:
             self.trazo.append((self.ultimo_punto, event.pos()))  # guarda el trazo
@@ -140,6 +179,10 @@ class VentanaDibujo(QMainWindow):
             self.borrar_en_posicion(event.pos())
     
     def mouseReleaseEvent(self, event):
+        # Si el panel está inactivo, ignorar eventos de mouse
+        if not self.panel_activo:
+            return
+            
         if event.button() == Qt.LeftButton:
             self.dibujando = False
             self.arrastrando_texto = False
@@ -156,6 +199,10 @@ class VentanaDibujo(QMainWindow):
                 self.figura_seleccionada = -1
     
     def mouseDoubleClickEvent(self, event):
+        # Si el panel está inactivo, ignorar eventos de mouse
+        if not self.panel_activo:
+            return
+            
         if self.modo == "mover":
             for i, item in enumerate(self.textos):
                 try:
@@ -184,99 +231,220 @@ class VentanaDibujo(QMainWindow):
             else:
                 self.texto_actual += event.text()
             self.update()
+        elif event.key() == Qt.Key_Space:
+            # Espacio para alternar modo
+            self.alternar_modo()
 
-    def crear_barra_herramientas(self):
+    def crear_interfaz_moderna(self):
+        # Panel con diseño básico pero bonito
         barra = QToolBar("herramientas")
         barra.setMovable(False)
-        self.addToolBar(Qt.TopToolBarArea, barra)
-
-        #boton para lapiz
-        boton_lapiz = QAction("Lápiz", self)
+        barra.setOrientation(Qt.Vertical)
+        barra.setIconSize(QSize(20, 20))  # Iconos más pequeños
+        barra.setFixedWidth(150)  # Forzar ancho fijo más pequeño
+        barra.setToolButtonStyle(Qt.ToolButtonTextBesideIcon)  # Forzar texto al lado del icono
+        barra.setFloatable(False)  # Evitar que flote
+        barra.setAllowedAreas(Qt.LeftToolBarArea)  # Solo permitir área izquierda
+        
+        # Forzar que no haya scroll y muestre todos los elementos
+        barra.setContextMenuPolicy(Qt.NoContextMenu)  # Deshabilitar menú contextual
+        # Cambiar el CSS completo:
+        # CSS moderno para el panel
+        css_style = """
+            QToolBar {
+                background-color: #1a2332;
+                border: 2px solid #3c5078;
+                border-radius: 8px;
+                padding: 3px;
+                spacing: 1px;
+                margin: 3px;
+            }
+            QToolButton {
+                background-color: #283548;
+                border: 2px solid #506e9e;
+                border-radius: 4px;
+                color: white;
+                padding: 4px;
+                font-size: 9px;
+                font-weight: bold;
+                min-height: 20px;
+                margin: 1px;
+                text-align: center;
+                width: 140px;
+                max-width: 140px;
+            }
+            QToolButton:hover {
+                background-color: #3c4a5c;
+                border: 2px solid #6482aa;
+            }
+            QToolButton:pressed {
+                background-color: #4a5a6c;
+                border: 2px solid #7a96b6;
+            }
+            QSpinBox {
+                background-color: #283548;
+                border: 2px solid #506e9e;
+                border-radius: 4px;
+                color: white;
+                padding: 3px;
+                font-size: 9px;
+                min-height: 18px;
+                width: 140px;
+                max-width: 140px;
+            }
+            QToolBar::separator {
+                background-color: #506e9e;
+                width: 1px;
+                margin: 3px 0px;
+            }
+            QToolButton:disabled {
+                color: #00ccff;
+                font-weight: bold;
+                font-size: 12px;
+                background-color: transparent;
+                border: none;
+            }
+        """
+        barra.setStyleSheet(css_style)
+        self.addToolBar(Qt.LeftToolBarArea, barra)
+        
+        # SECCIÓN: HERRAMIENTAS DE DIBUJO
+        titulo_herramientas = QAction("✏️ HERRAMIENTAS", self)
+        titulo_herramientas.setEnabled(False)
+        barra.addAction(titulo_herramientas)
+        
+        boton_lapiz = QAction("✏️ Lápiz", self)
         boton_lapiz.triggered.connect(lambda: self.cambiar_modo("lapiz"))
         barra.addAction(boton_lapiz)
-
-        #selector de grosor
+        
+        boton_borrador = QAction(" Borrador", self)
+        boton_borrador.triggered.connect(lambda: self.cambiar_modo("borrador"))
+        barra.addAction(boton_borrador)
+        
+        barra.addSeparator()
+        
+        # SECCIÓN: TEXTO
+        titulo_texto = QAction("📝 TEXTO", self)
+        titulo_texto.setEnabled(False)
+        barra.addAction(titulo_texto)
+        
+        boton_texto = QAction("📝 Texto", self)
+        boton_texto.triggered.connect(lambda: self.cambiar_modo("texto"))
+        barra.addAction(boton_texto)
+        
+        barra.addSeparator()
+        
+        # SECCIÓN: FIGURAS
+        titulo_figuras = QAction("⬜ FIGURAS", self)
+        titulo_figuras.setEnabled(False)
+        barra.addAction(titulo_figuras)
+        
+        boton_linea = QAction("📏 Línea", self)
+        boton_linea.triggered.connect(lambda: self.cambiar_figura("linea"))
+        barra.addAction(boton_linea)
+        
+        boton_cuadrado = QAction("⬜ Cuadrado", self)
+        boton_cuadrado.triggered.connect(lambda: self.cambiar_figura("cuadrado"))
+        barra.addAction(boton_cuadrado)
+        
+        boton_circulo = QAction("⭕ Círculo", self)
+        boton_circulo.triggered.connect(lambda: self.cambiar_figura("circulo"))
+        barra.addAction(boton_circulo)
+        
+        barra.addSeparator()
+        
+        # SECCIÓN: COLORES
+        titulo_colores = QAction("🎨 COLORES", self)
+        titulo_colores.setEnabled(False)
+        barra.addAction(titulo_colores)
+        
+        boton_rojo = QAction("🔴 Rojo", self)
+        boton_rojo.triggered.connect(lambda: self.cambiar_color(QColor(255, 0, 0)))
+        barra.addAction(boton_rojo)
+        
+        boton_amarillo = QAction(" Amarillo", self)
+        boton_amarillo.triggered.connect(lambda: self.cambiar_color(QColor(255, 255, 0)))
+        barra.addAction(boton_amarillo)
+        
+        boton_azul = QAction("🔵 Azul", self)
+        boton_azul.triggered.connect(lambda: self.cambiar_color(QColor(0, 0, 255)))
+        barra.addAction(boton_azul)
+        
+        barra.addSeparator()
+        
+        # SECCIÓN: EDICIÓN
+        titulo_edicion = QAction("⚙️ EDICIÓN", self)
+        titulo_edicion.setEnabled(False)
+        barra.addAction(titulo_edicion)
+        
         spinbox_grosor = QSpinBox()
         spinbox_grosor.setRange(1, 20)
         spinbox_grosor.setValue(3)
         spinbox_grosor.valueChanged.connect(self.cambiar_grosor)
         barra.addWidget(spinbox_grosor)
-
-        #boton para texto
-        boton_texto = QAction("Texto", self)
-        boton_texto.triggered.connect(lambda: self.cambiar_modo("texto"))
-        barra.addAction(boton_texto)
-
-        boton_mover = QAction("Mover", self)
-        boton_mover.triggered.connect(lambda: self.cambiar_modo("mover"))
-        barra.addAction(boton_mover)
-
-        #boton para colores
-        boton_rojo = QAction("Rojo", self)
-        boton_rojo.triggered.connect(lambda: self.cambiar_color(QColor(255, 0, 0)))
-        barra.addAction(boton_rojo)
         
-        boton_azul = QAction("Azul", self)
-        boton_azul.triggered.connect(lambda: self.cambiar_color(QColor(0, 0, 255)))
-        barra.addAction(boton_azul)
-
-        boton_verde = QAction("Verde", self)
-        boton_verde.triggered.connect(lambda: self.cambiar_color(QColor(0, 255, 0)))
-        barra.addAction(boton_verde)
-
-        boton_negro = QAction("Negro", self)
-        boton_negro.triggered.connect(lambda: self.cambiar_color(QColor(0, 0, 0)))
-        barra.addAction(boton_negro)
-
-        #selector de color personalizado
-        boton_color = QAction("Color", self)
-        boton_color.triggered.connect(self.seleccionar_color)
-        barra.addAction(boton_color)
-
-        #tamanio de fuente
-        spinbox_tamanio = QSpinBox()
-        spinbox_tamanio.setRange(8, 72)
-        spinbox_tamanio.setValue(12)
-        spinbox_tamanio.valueChanged.connect(self.cambiar_tamanio_fuente)
-        barra.addWidget(spinbox_tamanio)
-
-        # boton para fuente 
-        boton_fuente = QAction("Fuente", self)
-        boton_fuente.triggered.connect(self.seleccionar_fuente)
-        barra.addAction(boton_fuente)
-
-        #boton para borrar
-        boton_borrar = QAction("Borrar", self)
+        boton_deshacer = QAction("↶ Deshacer", self)
+        boton_deshacer.triggered.connect(self.deshacer)
+        barra.addAction(boton_deshacer)
+        
+        boton_borrar = QAction(" Borrar Todo", self)
         boton_borrar.triggered.connect(self.borrar_todo)
         barra.addAction(boton_borrar)
-
-        #botones para figuras geometricas
-        boton_linea = QAction("Línea", self)
-        boton_linea.triggered.connect(lambda: self.cambiar_figura("linea"))
-        barra.addAction(boton_linea)
-
-        boton_cuadrado = QAction("Cuadrado", self)
-        boton_cuadrado.triggered.connect(lambda: self.cambiar_figura("cuadrado"))
-        barra.addAction(boton_cuadrado)
-
-        boton_circulo = QAction("Círculo", self)
-        boton_circulo.triggered.connect(lambda: self.cambiar_figura("circulo"))
-        barra.addAction(boton_circulo)
-
-        boton_redimensionar = QAction("Redimensionar", self)
+        
+        barra.addSeparator()
+        
+        # SECCIÓN: CONTROLES
+        titulo_controles = QAction(" CONTROLES", self)
+        titulo_controles.setEnabled(False)
+        barra.addAction(titulo_controles)
+        
+        boton_mover = QAction("✋ Mover", self)
+        boton_mover.triggered.connect(lambda: self.cambiar_modo("mover"))
+        barra.addAction(boton_mover)
+        
+        boton_redimensionar = QAction("⤡ Redimensionar", self)
         boton_redimensionar.triggered.connect(lambda: self.cambiar_modo("redimensionar"))
         barra.addAction(boton_redimensionar)
-
-        #boton para salir
-        boton_salir = QAction("Salir", self)
-        boton_salir.triggered.connect(self.close)
-        barra.addAction(boton_salir)
-
-        boton_borrador = QAction("Borrador", self)
-        boton_borrador.triggered.connect(lambda: self.cambiar_modo("borrador"))
-        barra.addAction(boton_borrador)
-
-        barra.setMovable(True)
+        
+        boton_alternar = QAction(" Alternar", self)
+        boton_alternar.triggered.connect(self.alternar_modo)
+        barra.addAction(boton_alternar)
+        
+        # Forzar la aplicación de estilos
+        barra.setStyle(barra.style())
+        barra.update()
+        
+        # Verificar que los estilos se aplicaron
+        print(f"Estilos aplicados: {barra.styleSheet()[:100]}...")
+        print(f"Barra visible: {barra.isVisible()}")
+        print(f"Barra ancho: {barra.width()}")
+        
+        # Forzar actualización después de un breve delay
+        from PyQt5.QtCore import QTimer
+        QTimer.singleShot(100, lambda: barra.update())
+        
+        # Verificar si los estilos se aplicaron correctamente
+        if not barra.styleSheet():
+            print("⚠️ Los estilos no se aplicaron, usando estilos básicos...")
+            self.aplicar_estilos_basicos(barra)
+        
+        # Asegurar que la barra sea visible
+        barra.setVisible(True)
+        barra.show()
+        
+        # Forzar layout vertical después de agregar todos los elementos
+        barra.updateGeometry()
+        
+        # Verificar que todos los elementos estén visibles
+        print(f"Total de acciones en la barra: {len(barra.actions())}")
+        print(f"Total de widgets en la barra: {len(barra.findChildren(QSpinBox))}")
+        
+        # Forzar que todos los elementos sean visibles
+        for action in barra.actions():
+            if action.isVisible() == False:
+                action.setVisible(True)
+        
+        print("Panel con diseño creado")
 
     def cambiar_grosor(self, grosor):
         self.lapiz.setWidth(grosor)
@@ -300,17 +468,22 @@ class VentanaDibujo(QMainWindow):
             self.update()
     
     def cambiar_modo(self, modo):
+        if not self.panel_activo:
+            return  # No cambiar modo si el panel está inactivo
         self.modo = modo
         if modo == "texto":
             self.setCursor(Qt.IBeamCursor)
         elif modo == "mover":
             self.setCursor(Qt.OpenHandCursor)
-            # Cambiar cursor a mano abierta para indicar que se pueden mover figuras
         elif modo == "figura":
             self.setCursor(Qt.CrossCursor)
         elif modo == "redimensionar":
             self.setCursor(Qt.SizeAllCursor)
         elif modo == "borrador":
+            self.setCursor(Qt.CrossCursor)
+        elif modo == "seleccionar":
+            self.setCursor(Qt.ArrowCursor)
+        elif modo == "punto":
             self.setCursor(Qt.CrossCursor)
         else:
             self.setCursor(Qt.ArrowCursor)
@@ -542,6 +715,131 @@ class VentanaDibujo(QMainWindow):
 
     def punto_cerca_de_linea(self, inicio, fin, punto, distancia_maxima):
         return self.distancia_punto_linea(inicio, fin, punto) < distancia_maxima
+
+    def alternar_modo(self):
+        self.panel_activo = not self.panel_activo
+        if self.panel_activo:
+            # Activar panel
+            self.setAttribute(Qt.WA_TransparentForMouseEvents, False)
+            self.setAttribute(Qt.WA_TranslucentBackground, True)
+            self.setCursor(Qt.ArrowCursor)
+            self.setWindowTitle("Panel Digital - ACTIVO")
+            # Mostrar barra de herramientas
+            for barra in self.findChildren(QToolBar):
+                barra.setVisible(True)
+            print("🟢 Panel ACTIVADO - Mouse interactivo")
+        else:
+            # Desactivar panel - Forzar que el mouse pase completamente a través
+            self.setAttribute(Qt.WA_TransparentForMouseEvents, True)
+            self.setAttribute(Qt.WA_TranslucentBackground, True)
+            self.setAttribute(Qt.WA_NoMousePropagation, True)
+            # No usar WA_TransparentForInput ya que no existe en PyQt5
+            self.setCursor(Qt.ForbiddenCursor)
+            self.setWindowTitle("Panel Digital - INACTIVO")
+            # Ocultar barra de herramientas
+            for barra in self.findChildren(QToolBar):
+                barra.setVisible(False)
+            print("🔴 Panel DESACTIVADO - Mouse pasa completamente a través")
+        
+        # Forzar actualización de la ventana
+        self.update()
+        self.repaint()
+
+    def crear_icono_color(self, color, texto=""):
+        # Crear un icono de color sólido más grande
+        pixmap = QPixmap(48, 48)  # Tamaño más grande
+        pixmap.fill(color)
+        return QIcon(pixmap)
+
+    def crear_icono_texto(self, texto, color_fondo=QColor(255, 255, 255), color_texto=QColor(0, 0, 0)):
+        # Crear icono con texto más grande
+        pixmap = QPixmap(48, 48)  # Tamaño más grande
+        pixmap.fill(color_fondo)
+        painter = QPainter(pixmap)
+        painter.setPen(QPen(color_texto))
+        painter.setFont(QFont("Arial", 16, QFont.Bold))  # Fuente más grande y negrita
+        painter.drawText(pixmap.rect(), Qt.AlignCenter, texto)
+        painter.end()
+        return QIcon(pixmap)
+
+    def crear_icono_mejorado(self, simbolo, color_fondo, color_texto, color_borde=None):
+        pixmap = QPixmap(32, 32)
+        pixmap.fill(QColor(0, 0, 0, 0))  # Transparente
+        
+        painter = QPainter(pixmap)
+        painter.setRenderHint(QPainter.Antialiasing)
+        
+        # Fondo redondeado
+        painter.setBrush(QBrush(color_fondo))
+        if color_borde:
+            painter.setPen(QPen(color_borde, 2))
+        else:
+            painter.setPen(Qt.NoPen)
+        painter.drawRoundedRect(2, 2, 28, 28, 6, 6)
+        
+        # Texto
+        painter.setPen(QPen(color_texto))
+        painter.setFont(QFont("Arial", 12, QFont.Bold))
+        painter.drawText(pixmap.rect(), Qt.AlignCenter, simbolo)
+        painter.end()
+        
+        return QIcon(pixmap)
+
+    def deshacer(self):
+        if self.trazo:
+            self.trazo.pop()
+        elif self.textos:
+            self.textos.pop()
+        elif self.figuras:
+            self.figuras.pop()
+        self.update()
+
+    def aplicar_estilos_basicos(self, barra):
+        """Método alternativo para aplicar estilos básicos si el CSS complejo falla"""
+        try:
+            # Estilos básicos como respaldo
+            css_basico = """
+                QToolBar {
+                    background-color: #2b3e50;
+                    border: 1px solid #34495e;
+                }
+                QToolButton {
+                    background-color: #34495e;
+                    border: 1px solid #2c3e50;
+                    color: white;
+                    padding: 5px;
+                    font-weight: bold;
+                }
+                QSpinBox {
+                    background-color: #34495e;
+                    color: white;
+                    border: 1px solid #2c3e50;
+                }
+            """
+            barra.setStyleSheet(css_basico)
+            print("Estilos básicos aplicados como respaldo")
+        except Exception as e:
+            print(f"Error aplicando estilos básicos: {e}")
+
+    def verificar_estado_panel(self):
+        """Verificar el estado del panel después de que se muestre la ventana"""
+        try:
+            # Buscar la barra de herramientas
+            for barra in self.findChildren(QToolBar):
+                print(f"✅ Barra encontrada: {barra.objectName()}")
+                print(f"   Visible: {barra.isVisible()}")
+                print(f"   Ancho: {barra.width()}")
+                print(f"   Alto: {barra.height()}")
+                print(f"   Estilos: {barra.styleSheet()[:50]}...")
+                
+                # Forzar actualización si no es visible
+                if not barra.isVisible():
+                    barra.setVisible(True)
+                    barra.show()
+                    barra.update()
+                    print("   🔄 Barra forzada a visible")
+        except Exception as e:
+            print(f"❌ Error verificando panel: {e}")
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
