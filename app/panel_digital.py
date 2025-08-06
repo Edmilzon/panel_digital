@@ -55,6 +55,9 @@ class VentanaDibujo(QMainWindow):
         # Verificar estado después de mostrar la ventana
         from PyQt5.QtCore import QTimer
         QTimer.singleShot(500, self.verificar_estado_panel)
+        
+        # Crear ventana de reactivación
+        self.crear_ventana_reactivacion()
 
     def paintEvent(self, event):
         painter = QPainter(self)
@@ -234,6 +237,10 @@ class VentanaDibujo(QMainWindow):
         elif event.key() == Qt.Key_Space:
             # Espacio para alternar modo
             self.alternar_modo()
+        elif event.key() == Qt.Key_F12:
+            # F12 para reactivar cuando esté oculto
+            if not self.panel_activo:
+                self.alternar_modo()
 
     def crear_interfaz_moderna(self):
         # Panel con diseño básico pero bonito
@@ -304,9 +311,36 @@ class VentanaDibujo(QMainWindow):
                 background-color: transparent;
                 border: none;
             }
+            
+            /* Estilo especial para el botón de alternar */
+            QToolButton[text*=" Alternar"] {
+                background-color: #ff6b35;
+                border: 3px solid #e55a2b;
+                border-radius: 8px;
+                color: white;
+                font-weight: bold;
+                font-size: 11px;
+                min-height: 25px;
+                margin: 3px;
+            }
+            QToolButton[text*=" Alternar"]:hover {
+                background-color: #ff8c5a;
+                border: 3px solid #ff6b35;
+            }
+            QToolButton[text*=" Alternar"]:pressed {
+                background-color: #e55a2b;
+                border: 3px solid #cc4a1a;
+            }
         """
         barra.setStyleSheet(css_style)
         self.addToolBar(Qt.LeftToolBarArea, barra)
+        
+        # BOTÓN DE ALTERNAR (PRIMERO Y DESTACADO)
+        boton_alternar = QAction(" Alternar", self)
+        boton_alternar.triggered.connect(self.alternar_modo)
+        barra.addAction(boton_alternar)
+        
+        barra.addSeparator()
         
         # SECCIÓN: HERRAMIENTAS DE DIBUJO
         titulo_herramientas = QAction("✏️ HERRAMIENTAS", self)
@@ -353,6 +387,21 @@ class VentanaDibujo(QMainWindow):
         
         barra.addSeparator()
         
+        # SECCIÓN: CONTROLES
+        titulo_controles = QAction(" CONTROLES", self)
+        titulo_controles.setEnabled(False)
+        barra.addAction(titulo_controles)
+        
+        boton_mover = QAction("✋ Mover", self)
+        boton_mover.triggered.connect(lambda: self.cambiar_modo("mover"))
+        barra.addAction(boton_mover)
+        
+        boton_redimensionar = QAction("⤡ Redimensionar", self)
+        boton_redimensionar.triggered.connect(lambda: self.cambiar_modo("redimensionar"))
+        barra.addAction(boton_redimensionar)
+        
+        barra.addSeparator()
+        
         # SECCIÓN: COLORES
         titulo_colores = QAction("🎨 COLORES", self)
         titulo_colores.setEnabled(False)
@@ -390,25 +439,6 @@ class VentanaDibujo(QMainWindow):
         boton_borrar = QAction(" Borrar Todo", self)
         boton_borrar.triggered.connect(self.borrar_todo)
         barra.addAction(boton_borrar)
-        
-        barra.addSeparator()
-        
-        # SECCIÓN: CONTROLES
-        titulo_controles = QAction(" CONTROLES", self)
-        titulo_controles.setEnabled(False)
-        barra.addAction(titulo_controles)
-        
-        boton_mover = QAction("✋ Mover", self)
-        boton_mover.triggered.connect(lambda: self.cambiar_modo("mover"))
-        barra.addAction(boton_mover)
-        
-        boton_redimensionar = QAction("⤡ Redimensionar", self)
-        boton_redimensionar.triggered.connect(lambda: self.cambiar_modo("redimensionar"))
-        barra.addAction(boton_redimensionar)
-        
-        boton_alternar = QAction(" Alternar", self)
-        boton_alternar.triggered.connect(self.alternar_modo)
-        barra.addAction(boton_alternar)
         
         # Forzar la aplicación de estilos
         barra.setStyle(barra.style())
@@ -719,7 +749,8 @@ class VentanaDibujo(QMainWindow):
     def alternar_modo(self):
         self.panel_activo = not self.panel_activo
         if self.panel_activo:
-            # Activar panel
+            # Activar panel - Mostrar completamente
+            self.show()
             self.setAttribute(Qt.WA_TransparentForMouseEvents, False)
             self.setAttribute(Qt.WA_TranslucentBackground, True)
             self.setCursor(Qt.ArrowCursor)
@@ -727,19 +758,18 @@ class VentanaDibujo(QMainWindow):
             # Mostrar barra de herramientas
             for barra in self.findChildren(QToolBar):
                 barra.setVisible(True)
-            print("🟢 Panel ACTIVADO - Mouse interactivo")
+            # Ocultar ventana de reactivación
+            if hasattr(self, 'ventana_reactivacion'):
+                self.ventana_reactivacion.hide()
+            print("🟢 Panel ACTIVADO - Completamente visible")
         else:
-            # Desactivar panel - Forzar que el mouse pase completamente a través
-            self.setAttribute(Qt.WA_TransparentForMouseEvents, True)
-            self.setAttribute(Qt.WA_TranslucentBackground, True)
-            self.setAttribute(Qt.WA_NoMousePropagation, True)
-            # No usar WA_TransparentForInput ya que no existe en PyQt5
-            self.setCursor(Qt.ForbiddenCursor)
-            self.setWindowTitle("Panel Digital - INACTIVO")
-            # Ocultar barra de herramientas
-            for barra in self.findChildren(QToolBar):
-                barra.setVisible(False)
-            print("🔴 Panel DESACTIVADO - Mouse pasa completamente a través")
+            # Desactivar panel - Ocultar completamente
+            self.hide()
+            self.setWindowTitle("Panel Digital - OCULTO")
+            # Mostrar ventana de reactivación
+            if hasattr(self, 'ventana_reactivacion'):
+                self.ventana_reactivacion.show()
+            print("🔴 Panel OCULTO - Completamente invisible")
         
         # Forzar actualización de la ventana
         self.update()
@@ -840,6 +870,49 @@ class VentanaDibujo(QMainWindow):
                     print("   🔄 Barra forzada a visible")
         except Exception as e:
             print(f"❌ Error verificando panel: {e}")
+
+    def crear_ventana_reactivacion(self):
+        """Crear una ventana pequeña para reactivar el panel cuando esté oculto"""
+        from PyQt5.QtWidgets import QWidget, QLabel, QVBoxLayout
+        from PyQt5.QtCore import QTimer
+        
+        self.ventana_reactivacion = QWidget()
+        self.ventana_reactivacion.setWindowTitle("Reactivar Panel")
+        self.ventana_reactivacion.setWindowFlags(Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint | Qt.Tool)
+        self.ventana_reactivacion.setAttribute(Qt.WA_TranslucentBackground)
+        self.ventana_reactivacion.setGeometry(10, 10, 100, 30)
+        
+        # Crear layout
+        layout = QVBoxLayout()
+        self.ventana_reactivacion.setLayout(layout)
+        
+        # Crear etiqueta
+        etiqueta = QLabel("🔄 Panel")
+        etiqueta.setStyleSheet("""
+            QLabel {
+                background-color: rgba(255, 0, 0, 200);
+                color: white;
+                border-radius: 5px;
+                padding: 5px;
+                font-weight: bold;
+                font-size: 10px;
+            }
+        """)
+        layout.addWidget(etiqueta)
+        
+        # Conectar clic para reactivar
+        etiqueta.mousePressEvent = lambda event: self.reactivar_panel()
+        
+        # Mostrar la ventana de reactivación
+        self.ventana_reactivacion.show()
+        
+        print("✅ Ventana de reactivación creada")
+        
+    def reactivar_panel(self):
+        """Reactivar el panel cuando está oculto"""
+        if not self.panel_activo:
+            self.alternar_modo()
+            print("🔄 Panel reactivado desde ventana de reactivación")
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
