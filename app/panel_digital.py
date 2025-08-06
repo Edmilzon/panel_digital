@@ -331,6 +331,26 @@ class VentanaDibujo(QMainWindow):
                 background-color: #e55a2b;
                 border: 3px solid #cc4a1a;
             }
+            
+            /* Estilo especial para el botón de cerrar */
+            QToolButton[text*="❌"] {
+                background-color: #dc3545;
+                border: 3px solid #c82333;
+                border-radius: 8px;
+                color: white;
+                font-weight: bold;
+                font-size: 11px;
+                min-height: 25px;
+                margin: 3px;
+            }
+            QToolButton[text*="❌"]:hover {
+                background-color: #e74c3c;
+                border: 3px solid #dc3545;
+            }
+            QToolButton[text*="❌"]:pressed {
+                background-color: #c82333;
+                border: 3px solid #a71e2a;
+            }
         """
         barra.setStyleSheet(css_style)
         self.addToolBar(Qt.LeftToolBarArea, barra)
@@ -439,6 +459,13 @@ class VentanaDibujo(QMainWindow):
         boton_borrar = QAction(" Borrar Todo", self)
         boton_borrar.triggered.connect(self.borrar_todo)
         barra.addAction(boton_borrar)
+        
+        barra.addSeparator()
+        
+        # BOTÓN DE CERRAR (AL FINAL)
+        boton_cerrar = QAction("❌ Cerrar", self)
+        boton_cerrar.triggered.connect(self.cerrar_aplicacion)
+        barra.addAction(boton_cerrar)
         
         # Forzar la aplicación de estilos
         barra.setStyle(barra.style())
@@ -913,6 +940,19 @@ class VentanaDibujo(QMainWindow):
         if not self.panel_activo:
             self.alternar_modo()
             print("🔄 Panel reactivado desde ventana de reactivación")
+
+    def cerrar_aplicacion(self):
+        """Cerrar completamente la aplicación"""
+        reply = QMessageBox.question(self, 'Confirmar Cierre', 
+                                   '¿Estás seguro de que quieres cerrar el Panel Digital?',
+                                   QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
+        if reply == QMessageBox.Yes:
+            print("🔄 Cerrando Panel Digital...")
+            # Cerrar ventana de reactivación si existe
+            if hasattr(self, 'ventana_reactivacion'):
+                self.ventana_reactivacion.close()
+            # Cerrar la aplicación
+            QApplication.quit()
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
